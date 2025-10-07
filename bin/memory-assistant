@@ -1,0 +1,95 @@
+#!/bin/bash
+
+THRESHOLD=90
+
+get_mem_usage() {
+  
+  total=$(awk '/MemTotal:/ {print $2}' /proc/meminfo)
+  available=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
+  used=$((total - available))
+
+  # Swap
+  read swaptotal swapfree <<< $(awk '/SwapTotal/ {t=$2} /SwapFree/ {f=$2} END {print t" "f}' /proc/meminfo)
+  swapused=$((swaptotal - swapfree))
+
+  # ZRAM (if exists)
+  zram_total=0
+  zram_used=0
+  if compgen -G "/sys/block/zram*" > /dev/null; then
+    for zdev in /sys/block/zram*; do
+      if [[ -f "$zdev/mem_used_total" && -f "$zdev/disksize" ]]; then
+        used_z=$(cat "$zdev/mem_used_total")
+        size_z=$(cat "$zdev/disksize")
+        zram_used=$((zram_used + used_z/1024))      # converte pra KiB
+        zram_total=$((zram_total + size_z/1024))
+      fi
+    done
+  fi
+
+  # Zswap (if exists)
+  zswap_total=0
+  zswap_used=0
+  if [[ -f /sys/kernel/debug/zswap/stat ]]; then
+    pool_total=$(awk '/pool_total_size/ {print $2}' /sys/kernel/debug/zswap/stat)
+    if [[ -n "$pool_total" ]]; then
+      zswap_total=$((pool_total / 1024))
+      zswap_used=$zswap_total
+    fi
+  fi
+
+  # Sum
+  total_all=$((total + swaptotal + zram_total + zswap_total))
+  used_all=$((used + swapused + zram_used + zswap_used))
+
+  # Avoid division by zero
+  if [[ $total_all -gt 0 ]]; then
+    usage_percent=$((used_all * 100 / total_all))
+  else
+    usage_percent=0
+  fi
+
+  echo "$usage_percent"
+}
+
+show_alert() {
+  used_percent="$1"
+
+  procs=$(ps -eo comm,rss --sort=-rss | tail -n +2 | head -n 20 | awk '{
+    mem_kb=$2
+    mem_gb=mem_kb/1024/1024
+    if(mem_gb>=1){
+      printf "%s\n%.2f GB\n", $1, mem_gb
+    } else {
+      mem_mb=mem_kb/1024
+      printf "%s\n%.0f MB\n", $1, mem_mb
+    }
+  }')
+
+  choice=$(echo "$procs" | zenity --list \
+    --title="⚠️ Your system has run out of application memory." \
+    --text="To avoid problems with your computer, quit any applications you are not using. \n" \
+    --column="Application" --column="Memory" \
+    --width=800 --height=600 \
+    --ok-label="Force Quit" \
+    --cancel-label="Cancel" \
+    --icon=dialog-warning)
+
+  if [ -n "$choice" ]; then
+    app=$(echo "$choice" | awk '{print $1}')
+      pkill -9 -x "$app" 2>/dev/null
+  fi
+}
+
+# --- Main loop ---
+
+while true; do
+  usage=$(get_mem_usage)
+  # echo "[INFO] Memory: ${usage}/${THRESHOLD}%"
+
+  if [ "$usage" -ge "$THRESHOLD" ]; then
+    canberra-gtk-play --id=dialog-warning &
+    show_alert "$usage"
+  fi
+
+  sleep 1
+done
