@@ -1,0 +1,22 @@
+#!/bin/bash
+
+APP_NAME="memory-assistant"
+APP_PATH="$HOME/.local/share/plco-memory-assistant/bin/$APP_NAME"
+
+if pgrep -f "$APP_PATH" > /dev/null 2>&1; then
+    PID=$(pgrep -f "$APP_PATH")
+    echo "✅ $APP_NAME is running (PID: $PID)"
+else
+    echo "❌ $APP_NAME is not running"
+    echo
+    read -p "Start it now? (y/n): " ans
+    if [[ "$ans" =~ ^[Yy]$ ]]; then
+        nohup "$APP_PATH" >/dev/null 2>&1 &
+        sleep 1
+        if pgrep -f "$APP_PATH" > /dev/null; then
+            echo "🚀 Started successfully!"
+        else
+            echo "⚠️ Failed to start. Check your setup."
+        fi
+    fi
+fi
