@@ -20,8 +20,8 @@ else
     exit 1
 fi
 
-# ensure memory-assistant is executable
-chmod +x "$LOCAL_PATH/bin/memory-assistant" 2>/dev/null || true
+# ensure all bin files is executable
+chmod +x "$LOCAL_PATH/bin/*" 2>/dev/null || true
 
 # install autostart entry
 mkdir -p "$HOME/.config/autostart"
