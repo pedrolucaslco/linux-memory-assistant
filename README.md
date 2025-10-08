@@ -43,7 +43,7 @@ or
 Start it now? (y/n):
 ```
 
-🧪 Testing the Assistant
+## 🧪 Testing the Assistant
 
 To verify it’s working:
 
@@ -53,7 +53,7 @@ Open several apps or use a memory-stress tool to push RAM usage above your confi
 
 A Zenity alert should appear when memory usage passes the limit.
 
-🧼 Uninstall (optional)
+## 🧼 Uninstall (optional)
 
 To remove everything:
 
