@@ -123,9 +123,12 @@ trap cleanup EXIT
 # --- Main loop ---
 
 PREV_USAGE=0
+LAST_NOTIFY=0
+NOTIFY_INTERVAL=300
 
 while true; do
   usage=$(get_mem_usage)
+  now=$(date +%s)
 
   if [ "$usage" -ge "$THRESHOLD_ALERT" ]; then
     if [ ! -f "$LOCK_FILE" ] || ! kill -0 "$(cat "$LOCK_FILE")" 2>/dev/null; then
@@ -133,8 +136,11 @@ while true; do
       show_alert "$usage"
       rm -f "$LOCK_FILE"
     fi
-  elif [ "$usage" -ge "$THRESHOLD_NOTIFY" ] && [ "$usage" -gt "$PREV_USAGE" ]; then
+  elif [ "$usage" -ge "$THRESHOLD_NOTIFY" ] && \
+       [ "$usage" -gt "$PREV_USAGE" ] && \
+       [ $((now - LAST_NOTIFY)) -ge "$NOTIFY_INTERVAL" ]; then
     show_notification "$usage"
+    LAST_NOTIFY="$now"
   fi
 
   PREV_USAGE="$usage"
