@@ -38,7 +38,34 @@ show_alert() {
 
   if [ -n "$choice" ]; then
     app=$(echo "$choice" | awk '{print $1}')
-      pkill -9 -x "$app" 2>/dev/null
+
+    # loading window
+    zenity --progress --pulsate --no-cancel \
+        --text="Force quitting $app..." \
+        --title="Processing" --width=350 &
+    LOADING_PID=$!
+
+    KILLED=0
+
+    # attempt 1: exact match on comm
+    if pkill -9 -x "$app" 2>/dev/null; then
+      KILLED=1
+    # attempt 2: partial match on comm
+    elif pkill -9 "$app" 2>/dev/null; then
+      KILLED=1
+    # attempt 3: match anywhere in command line
+    elif pkill -9 -f "$app" 2>/dev/null; then
+      KILLED=1
+    fi
+
+    kill "$LOADING_PID" 2>/dev/null
+    wait "$LOADING_PID" 2>/dev/null
+
+    if [ "$KILLED" -eq 0 ]; then
+      zenity --error \
+          --text="Could not force quit $app.\nTry closing it manually." \
+          --width=300
+    fi
   fi
 }
 
