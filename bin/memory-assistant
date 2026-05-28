@@ -31,7 +31,7 @@ show_notification() {
   local body="Memory usage at ${pct}% — rising above ${THRESHOLD_NOTIFY}%"
 
   if command -v notify-send &> /dev/null; then
-    notify-send --urgency=critical "$title" "$body"
+    notify-send "$title" "$body"
   else
     zenity --notification --text="$title: $body" 2>/dev/null
   fi
