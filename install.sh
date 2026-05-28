@@ -16,19 +16,33 @@ fi
 
 LOCAL_PATH="$HOME/.local/share/plco-memory-assistant"
 
-# ensure target directory exists
-mkdir -p "$LOCAL_PATH"
-
-# copy bin folder to ~/.local/share/plco-memory-assistant
-if [ -d "bin" ]; then
-    cp -r "bin" "$LOCAL_PATH/"
+# check if already installed
+if [ -d "$LOCAL_PATH/bin" ]; then
+    echo "Existing installation found, updating files..."
+    if command -v rsync &> /dev/null; then
+        rsync -a "bin/" "$LOCAL_PATH/bin/"
+    else
+        cp -r "bin/" "$LOCAL_PATH/bin/"
+    fi
+    # restart the daemon with updated files
+    if pgrep -f "$LOCAL_PATH/bin/memory-assistant" > /dev/null 2>&1; then
+        echo "Restarting memory-assistant daemon..."
+        pkill -f "$LOCAL_PATH/bin/memory-assistant" 2>/dev/null || true
+        sleep 0.5
+        nohup "$LOCAL_PATH/bin/memory-assistant" >/dev/null 2>&1 &
+    fi
 else
-    echo "Error: 'bin' folder not found in current directory."
-    exit 1
+    mkdir -p "$LOCAL_PATH"
+    if [ -d "bin" ]; then
+        cp -r "bin" "$LOCAL_PATH/"
+    else
+        echo "Error: 'bin' folder not found in current directory."
+        exit 1
+    fi
 fi
 
 # ensure all bin files is executable
-chmod +x "$LOCAL_PATH/bin/*" 2>/dev/null || true
+chmod +x "$LOCAL_PATH/bin/"* 2>/dev/null || true
 
 # install autostart entry
 mkdir -p "$HOME/.config/autostart"
