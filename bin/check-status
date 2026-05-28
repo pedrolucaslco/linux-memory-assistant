@@ -34,25 +34,59 @@ get_mem_usage() {
 }
 
 find_icon() {
-    local name="$1" path
-    for path in \
-        "/usr/share/icons/hicolor/48x48/apps/${name}.png" \
-        "/usr/share/icons/hicolor/64x64/apps/${name}.png" \
-        "/usr/share/pixmaps/${name}.png" \
-        "/var/lib/snapd/desktop/icons/${name}.png"; do
-        [ -f "$path" ] && { echo "$path"; return; }
+    local name="$1" icon_name dir desktop_file
+    local -a search_dirs=(
+        /usr/share/icons/hicolor/48x48/apps
+        /usr/share/icons/hicolor/64x64/apps
+        /usr/share/pixmaps
+        /var/lib/snapd/desktop/icons
+        "$HOME/.local/share/flatpak/exports/share/icons/hicolor/48x48/apps"
+    )
+
+    for dir in "${search_dirs[@]}"; do
+        [ -f "$dir/$name" ]     && { echo "$dir/$name";     return; }
+        [ -f "$dir/$name.png" ] && { echo "$dir/$name.png"; return; }
+        [ -f "$dir/$name.svg" ] && { echo "$dir/$name.svg"; return; }
     done
+
     local lower="${name,,}"
-    [ "$lower" != "$name" ] && find_icon "$lower" && return
+    if [ "$lower" != "$name" ]; then
+        for dir in "${search_dirs[@]}"; do
+            [ -f "$dir/$lower" ]     && { echo "$dir/$lower";     return; }
+            [ -f "$dir/$lower.png" ] && { echo "$dir/$lower.png"; return; }
+            [ -f "$dir/$lower.svg" ] && { echo "$dir/$lower.svg"; return; }
+        done
+    fi
+
+    for pattern in \
+        "/usr/share/applications/${name}.desktop" \
+        "/usr/share/applications/${name}-browser.desktop" \
+        "/var/lib/flatpak/exports/share/applications/${name}.desktop" \
+        "$HOME/.local/share/flatpak/exports/share/applications/${name}.desktop"; do
+        for desktop_file in $pattern; do
+            [ -f "$desktop_file" ] || continue
+            icon_name=$(grep -oP '(?<=^Icon=).*' "$desktop_file" | head -1)
+            [ -n "$icon_name" ] && break 2
+        done
+    done
+
+    if [ -n "$icon_name" ]; then
+        for dir in "${search_dirs[@]}"; do
+            [ -f "$dir/$icon_name" ]     && { echo "$dir/$icon_name";     return; }
+            [ -f "$dir/$icon_name.png" ] && { echo "$dir/$icon_name.png"; return; }
+            [ -f "$dir/$icon_name.svg" ] && { echo "$dir/$icon_name.svg"; return; }
+        done
+    fi
+
     echo ""
 }
 DEFAULT_ICON=""
 for _ic in \
-    "/usr/share/icons/Adwaita/48x48/categories/applications-system.png" \
-    "/usr/share/icons/hicolor/48x48/apps/gnome-panel.png" \
-    "/usr/share/pixmaps/gnome-logo-icon.png"; do
+    "/usr/share/icons/hicolor/48x48/apps/fedora-logo-icon.png" \
+    "/usr/share/pixmaps/fedora-logo-icon.png"; do
     [ -f "$_ic" ] && { DEFAULT_ICON="$_ic"; break; }
 done
+[ -z "$DEFAULT_ICON" ] && DEFAULT_ICON=$(find /usr/share/icons -path "*/48x48/*" -name "*.png" 2>/dev/null | head -1)
 
 get_procs() {
     ps -eo comm,rss,etime --sort=-rss | tail -n +2 | head -n 25 | while IFS=' ' read -r comm rss etime; do
@@ -141,7 +175,7 @@ show_alert() {
     choice=$(echo "$procs" | zenity --list \
         --title="Memory Alert (Threshold: ${threshold_alert}%)" \
         --text="This is a preview of the critical alert window.\n" \
-        --column="pixbuf:Icon" --column="Application" --column="Memory" --column="Uptime" \
+        --imagelist --column="Icon" --column="Application" --column="Memory" --column="Uptime" \
         --print-column=2 \
         --width=900 --height=600 \
         --ok-label="Force Quit" \
@@ -214,17 +248,16 @@ show_top() {
     clear
     printf "  %-22s %-10s %s\n" "COMMAND" "MEMORY" "UPTIME"
     printf "  %s\n" "──────────────────────────────────────────────"
-    local line=0 name mem uptime
-    get_procs | while IFS= read -r val; do
+    local line=0 name mem
+    while IFS= read -r val; do
         case $((line % 4)) in
             0) ;;                          # icon - skip
             1) name="$val" ;;               # name
             2) mem="$val" ;;                # memory
-            3) uptime="$val"                # uptime
-               printf "  %-22s %-10s %s\n" "$name" "$mem" "$uptime" ;;
+            3) printf "  %-22s %-10s %s\n" "$name" "$mem" "$val" ;;
         esac
         line=$((line + 1))
-    done
+    done < <(get_procs)
     echo ""
     read -p "Press Enter to return..."
 }
