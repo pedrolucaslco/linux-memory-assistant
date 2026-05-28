@@ -1,22 +1,224 @@
 #!/bin/bash
 
 APP_NAME="memory-assistant"
-APP_PATH="$HOME/.local/share/plco-memory-assistant/bin/$APP_NAME"
+INSTALL_DIR="$HOME/.local/share/plco-memory-assistant"
+APP_PATH="$INSTALL_DIR/bin/$APP_NAME"
 
-if pgrep -f "$APP_PATH" > /dev/null 2>&1; then
-    PID=$(pgrep -f "$APP_PATH")
-    echo "✅ $APP_NAME is running (PID: $PID)"
-else
-    echo "❌ $APP_NAME is not running"
-    echo
-    read -p "Start it now? (y/n): " ans
-    if [[ "$ans" =~ ^[Yy]$ ]]; then
-        nohup "$APP_PATH" >/dev/null 2>&1 &
-        sleep 1
-        if pgrep -f "$APP_PATH" > /dev/null; then
-            echo "🚀 Started successfully!"
-        else
-            echo "⚠️ Failed to start. Check your setup."
-        fi
+# ── Utilities ──────────────────────────────────────────
+
+get_threshold() {
+    if [ -f "$APP_PATH" ]; then
+        grep -oP '(?<=^THRESHOLD=)[0-9]+' "$APP_PATH"
+    else
+        echo "N/A"
     fi
-fi
+}
+
+get_mem_usage() {
+    total=$(awk '/MemTotal:/ {print $2}' /proc/meminfo)
+    available=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
+
+    if [[ $total -gt 0 ]]; then
+        echo $(( (total - available) * 100 / total ))
+    else
+        echo 0
+    fi
+}
+
+is_running() {
+    pgrep -f "$APP_PATH" > /dev/null 2>&1
+}
+
+get_pid() {
+    pgrep -f "$APP_PATH"
+}
+
+get_uptime() {
+    local pid
+    pid=$(get_pid)
+    if [ -n "$pid" ]; then
+        ps -o etime= -p "$pid" | xargs
+    fi
+}
+
+# ── Actions ────────────────────────────────────────────
+
+start_daemon() {
+    if is_running; then
+        echo "Already running (PID: $(get_pid))."
+        return
+    fi
+    nohup "$APP_PATH" >/dev/null 2>&1 &
+    sleep 1
+    if is_running; then
+        echo "Started successfully (PID: $(get_pid))."
+    else
+        echo "Failed to start. Check your setup."
+    fi
+}
+
+stop_daemon() {
+    if ! is_running; then
+        echo "Not running."
+        return
+    fi
+    pkill -f "$APP_PATH" 2>/dev/null || true
+    sleep 0.5
+    if is_running; then
+        echo "Failed to stop. Try manually."
+    else
+        echo "Stopped."
+    fi
+}
+
+restart_daemon() {
+    stop_daemon
+    start_daemon
+}
+
+# ── Screens ────────────────────────────────────────────
+
+show_alert() {
+    THRESHOLD=$(get_threshold)
+    procs=$(ps -eo comm,rss --sort=-rss | tail -n +2 | head -n 20 | awk '{
+        mem_kb=$2
+        mem_gb=mem_kb/1024/1024
+        if(mem_gb>=1){
+            printf "%s\n%.2f GB\n", $1, mem_gb
+        } else {
+            mem_mb=mem_kb/1024
+            printf "%s\n%.0f MB\n", $1, mem_mb
+        }
+    }')
+
+    choice=$(echo "$procs" | zenity --list \
+        --title="Memory Alert Preview (Threshold: ${THRESHOLD}%)" \
+        --text="This is a preview of the alert window.\nCurrent top memory-consuming processes:\n" \
+        --column="Application" --column="Memory" \
+        --width=800 --height=600 \
+        --ok-label="Force Quit" \
+        --cancel-label="Close" \
+        --icon=dialog-warning)
+
+    if [ -n "$choice" ]; then
+        app=$(echo "$choice" | awk '{print $1}')
+        pkill -9 -x "$app" 2>/dev/null
+        echo "Killed: $app"
+    fi
+}
+
+show_top() {
+    clear
+    echo "── Top Processes by Memory ──"
+    echo ""
+    ps -eo comm,rss --sort=-rss | head -n 20 | awk '{
+        if(NR==1) printf "  %-20s %s\n", "COMMAND", "MEMORY"
+        else {
+            mem_kb=$2
+            mem_gb=mem_kb/1024/1024
+            if(mem_gb>=1) printf "  %-20s %.2f GB\n", $1, mem_gb
+            else { mem_mb=mem_kb/1024; printf "  %-20s %.0f MB\n", $1, mem_mb }
+        }
+    }'
+    echo ""
+    read -p "Press Enter to return..."
+}
+
+show_status_text() {
+    local mem_usage threshold
+    mem_usage=$(get_mem_usage)
+    threshold=$(get_threshold)
+
+    if is_running; then
+        echo "  Service:   Running"
+        echo "  PID:       $(get_pid)"
+        echo "  Uptime:    $(get_uptime)"
+        echo "  Memory:    ${mem_usage}%"
+        echo "  Threshold: ${threshold}%"
+    else
+        echo "  Service:   Not running"
+        echo "  Memory:    ${mem_usage}%"
+        echo "  Threshold: ${threshold}%"
+    fi
+}
+
+# ── TUI Menu ───────────────────────────────────────────
+
+show_menu() {
+    while true; do
+        clear
+
+        local mem_usage threshold running_status pid uptime
+        mem_usage=$(get_mem_usage)
+        threshold=$(get_threshold)
+
+        if is_running; then
+            running_status="Running  "
+            pid="$(get_pid)"
+            uptime="$(get_uptime)"
+        else
+            running_status="Stopped  "
+            pid="--"
+            uptime="--"
+        fi
+
+        echo "╔══════════════════════════════════════════╗"
+        echo "║        PLCO Memory Assistant             ║"
+        echo "╠══════════════════════════════════════════╣"
+        printf "║  Status:   %s  PID: %-5s     ║\n" "$running_status" "$pid"
+        printf "║  Uptime:   %-28s ║\n" "$uptime"
+        echo "║                                          ║"
+        printf "║  Memory:   %-3s%% (Threshold: %-3s%%)           ║\n" "$mem_usage" "$threshold"
+        echo "╚══════════════════════════════════════════╝"
+        echo ""
+        echo "  1) Start daemon"
+        echo "  2) Stop  daemon"
+        echo "  3) Restart daemon"
+        echo "  4) Test alert (zenity preview)"
+        echo "  5) View top processes"
+        echo "  6) Exit"
+        echo ""
+        read -p "  Choose [1-6]: " choice
+
+        case "$choice" in
+            1) clear; start_daemon; read -p "Press Enter...";;
+            2) clear; stop_daemon;  read -p "Press Enter...";;
+            3) clear; restart_daemon; read -p "Press Enter...";;
+            4) clear; show_alert;   read -p "Press Enter...";;
+            5) show_top;;
+            6) clear; exit 0;;
+            *) ;;
+        esac
+    done
+}
+
+show_help() {
+    cat <<EOF
+Usage: $(basename "$0") [option]
+
+Options:
+  (no args)  Open interactive TUI
+  --alert    Show the alert window (preview without reaching threshold)
+  --help     Show this help
+
+EOF
+}
+
+# ── Entrypoint ─────────────────────────────────────────
+
+case "${1:-}" in
+    --alert) show_alert;;
+    --help)  show_help;;
+    "")
+        if [ -t 0 ]; then
+            show_menu
+        else
+            show_status_text
+        fi
+        ;;
+    *)
+        echo "Unknown option: $1"
+        show_help
+        exit 1
+        ;;
+esac

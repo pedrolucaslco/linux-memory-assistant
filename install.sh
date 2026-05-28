@@ -57,5 +57,25 @@ Name=Memory Assistant
 Comment=Alert of memory usage like macOS
 EOF
 
+# create global symlink in ~/.local/bin
+mkdir -p "$HOME/.local/bin"
+ln -sf "$LOCAL_PATH/bin/check-status" "$HOME/.local/bin/check-status"
+
+# ensure ~/.local/bin is in PATH
+if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    profile_file="$HOME/.bashrc"
+    if [ -f "$HOME/.bash_profile" ]; then
+        profile_file="$HOME/.bash_profile"
+    elif [ -f "$HOME/.profile" ]; then
+        profile_file="$HOME/.profile"
+    fi
+    if ! grep -q '\.local/bin' "$profile_file" 2>/dev/null; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$profile_file"
+        echo "Added ~/.local/bin to PATH in $profile_file"
+        echo "Run 'source $profile_file' or restart your terminal to use 'check-status' directly."
+    fi
+fi
+
 echo "✅ Memory Assistant installed successfully!"
 echo "📂 Location: $LOCAL_PATH"
+echo "💡 Run 'check-status' from anywhere to open the TUI."

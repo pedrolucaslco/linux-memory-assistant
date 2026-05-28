@@ -29,3 +29,5 @@ Examples:
 - **Uninstall:** `pkill -f memory-assistant && rm -rf ~/.local/share/plco-memory-assistant && rm -f ~/.config/autostart/plco-memory-assistant.desktop`
 - **Threshold:** hardcoded at 80% in `bin/memory-assistant:3`
 - **`bin/` must exist in CWD** for `install.sh` to succeed.
+- **Status script:** `~/.local/bin/check-status` (symlink) opens a TUI menu with status, start/stop/restart, alert preview, and top processes. Run `check-status --alert` to preview the alert window without hitting the threshold.
+- **Global access:** `install.sh` creates `~/.local/bin/check-status` symlink and adds it to PATH. Run `check-status` from anywhere.

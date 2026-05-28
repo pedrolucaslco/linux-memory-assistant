@@ -18,40 +18,35 @@ If you want to start it right away (without rebooting):
 nohup ~/.local/share/plco-memory-assistant/bin/memory-assistant >/dev/null 2>&1 &
 ```
 
-## 🔍 Checking Status
+## 🔍 Checking & Managing
 
-Use the included check-status script:
+After installation, run `check-status` from anywhere to open the interactive TUI:
 
-```bash
-~/.local/share/plco-memory-assistant/bin/check-status
+```
+╔══════════════════════════════════════════╗
+║        PLCO Memory Assistant             ║
+╠══════════════════════════════════════════╣
+║  Status:   Running    PID: 12345         ║
+║  Uptime:   02:15:30                      ║
+║                                          ║
+║  Memory:   45% (Threshold: 80%)          ║
+╚══════════════════════════════════════════╝
+
+  1) Start daemon
+  2) Stop  daemon
+  3) Restart daemon
+  4) Test alert (zenity preview)
+  5) View top processes
+  6) Exit
 ```
 
-It will:
-
-Show whether the service is running and display its PID
-
-Offer to start it if it’s not running
-
-Example output:
+Use `--alert` to preview directly:
 
 ```bash
-✅ memory-assistant is running (PID: 12345)
-
-or
-
-❌ memory-assistant is not running
-Start it now? (y/n):
+check-status --alert
 ```
 
-## 🧪 Testing the Assistant
-
-To verify it’s working:
-
-Run check-status and confirm the process is active.
-
-Open several apps or use a memory-stress tool to push RAM usage above your configured threshold.
-
-A Zenity alert should appear when memory usage passes the limit.
+If `check-status` is not found after install, run `source ~/.bashrc` or restart the terminal.
 
 ## 🧼 Uninstall (optional)
 

@@ -3,52 +3,14 @@
 THRESHOLD=80
 
 get_mem_usage() {
-  
   total=$(awk '/MemTotal:/ {print $2}' /proc/meminfo)
   available=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
-  used=$((total - available))
 
-  # Swap
-  read swaptotal swapfree <<< $(awk '/SwapTotal/ {t=$2} /SwapFree/ {f=$2} END {print t" "f}' /proc/meminfo)
-  swapused=$((swaptotal - swapfree))
-
-  # ZRAM (if exists)
-  zram_total=0
-  zram_used=0
-  if compgen -G "/sys/block/zram*" > /dev/null; then
-    for zdev in /sys/block/zram*; do
-      if [[ -f "$zdev/mem_used_total" && -f "$zdev/disksize" ]]; then
-        used_z=$(cat "$zdev/mem_used_total")
-        size_z=$(cat "$zdev/disksize")
-        zram_used=$((zram_used + used_z/1024))      # converte pra KiB
-        zram_total=$((zram_total + size_z/1024))
-      fi
-    done
-  fi
-
-  # Zswap (if exists)
-  zswap_total=0
-  zswap_used=0
-  if [[ -f /sys/kernel/debug/zswap/stat ]]; then
-    pool_total=$(awk '/pool_total_size/ {print $2}' /sys/kernel/debug/zswap/stat)
-    if [[ -n "$pool_total" ]]; then
-      zswap_total=$((pool_total / 1024))
-      zswap_used=$zswap_total
-    fi
-  fi
-
-  # Sum
-  total_all=$((total + swaptotal + zram_total + zswap_total))
-  used_all=$((used + swapused + zram_used + zswap_used))
-
-  # Avoid division by zero
-  if [[ $total_all -gt 0 ]]; then
-    usage_percent=$((used_all * 100 / total_all))
+  if [[ $total -gt 0 ]]; then
+    echo $(( (total - available) * 100 / total ))
   else
-    usage_percent=0
+    echo 0
   fi
-
-  echo "$usage_percent"
 }
 
 show_alert() {
