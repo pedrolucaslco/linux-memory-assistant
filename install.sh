@@ -4,7 +4,14 @@ set -e
 # check & install dependencies
 if ! command -v zenity &> /dev/null; then
     echo "zenity not found, installing..."
-    sudo apt update && sudo apt install -y zenity
+    if command -v apt &> /dev/null; then
+        sudo apt update && sudo apt install -y zenity
+    elif command -v dnf &> /dev/null; then
+        sudo dnf install -y zenity
+    else
+        echo "Error: no supported package manager found (apt, dnf). Install zenity manually."
+        exit 1
+    fi
 fi
 
 LOCAL_PATH="$HOME/.local/share/plco-memory-assistant"
