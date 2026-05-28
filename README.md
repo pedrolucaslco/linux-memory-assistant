@@ -29,7 +29,9 @@ After installation, run `check-status` from anywhere to open the interactive TUI
 ║  Status:   Running    PID: 12345         ║
 ║  Uptime:   02:15:30                      ║
 ║                                          ║
-║  Memory:   45% (Threshold: 80%)          ║
+║  Memory:   45%                           ║
+║  Notify:   >= 80%                         ║
+║  Alert:    >= 88%                         ║
 ╚══════════════════════════════════════════╝
 
   1) Start daemon
