@@ -110,10 +110,13 @@ show_alert() {
     if [ -n "$choice" ]; then
         app=$(echo "$choice" | awk '{print $1}')
 
-        echo ""
-        echo "╔═══ DEBUG: Force Quit ═══════════════════════════"
-        echo "║  Target: $app"
-        echo "╠═══════════════════════════════════════════════════"
+        LOG=""
+        log() { LOG+="$1\n"; }
+
+        log "═══════════════════════════════════════════"
+        log " Force Quit"
+        log " Target: $app"
+        log "═══════════════════════════════════════════"
 
         zenity --progress --pulsate --no-cancel \
             --text="Force quitting $app..." \
@@ -122,24 +125,27 @@ show_alert() {
 
         KILLED=0
 
-        echo "║  [1/3] pkill -9 -x \"$app\""
+        log ""
+        log " [1/3] pkill -9 -x \"$app\""
         if pkill -9 -x "$app" 2>/dev/null; then
-            echo "║  -> OK"
+            log " -> OK"
             KILLED=1
         else
-            echo "║  -> no process matched (exit 1)"
-            echo "║  [2/3] pkill -9 \"$app\""
+            log " -> no process matched (exit 1)"
+            log ""
+            log " [2/3] pkill -9 \"$app\""
             if pkill -9 "$app" 2>/dev/null; then
-                echo "║  -> OK"
+                log " -> OK"
                 KILLED=1
             else
-                echo "║  -> no process matched (exit 1)"
-                echo "║  [3/3] pkill -9 -f \"$app\""
+                log " -> no process matched (exit 1)"
+                log ""
+                log " [3/3] pkill -9 -f \"$app\""
                 if pkill -9 -f "$app" 2>/dev/null; then
-                    echo "║  -> OK"
+                    log " -> OK"
                     KILLED=1
                 else
-                    echo "║  -> no process matched (exit 1)"
+                    log " -> no process matched (exit 1)"
                 fi
             fi
         fi
@@ -147,15 +153,18 @@ show_alert() {
         kill "$LOADING_PID" 2>/dev/null
         wait "$LOADING_PID" 2>/dev/null
 
+        log ""
         if [ "$KILLED" -eq 1 ]; then
-            echo "║  ✅ $app sent SIGKILL"
+            log " ✅ $app sent SIGKILL"
         else
-            echo "║  ⚠️ Could not kill any process matching \"$app\""
-            zenity --error \
-                --text="Could not force quit $app.\nTry closing it manually." \
-                --width=300
+            log " ⚠️ Could not kill $app"
         fi
-        echo "╚═══════════════════════════════════════════════════"
+        log "═══════════════════════════════════════════"
+
+        echo -e "$LOG" | zenity --text-info \
+            --title="Force Quit Result" \
+            --width=500 --height=300 \
+            --font="monospace"
     fi
     rm -f "$LOCK_FILE"
 }
