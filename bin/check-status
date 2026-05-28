@@ -79,6 +79,13 @@ restart_daemon() {
 # ── Screens ────────────────────────────────────────────
 
 show_alert() {
+    LOCK_FILE="/tmp/plco-memory-assistant-alert.lock"
+    if [ -f "$LOCK_FILE" ] && kill -0 "$(cat "$LOCK_FILE")" 2>/dev/null; then
+        echo "Alert window already open."
+        return
+    fi
+    echo $$ > "$LOCK_FILE"
+
     THRESHOLD=$(get_threshold)
     procs=$(ps -eo comm,rss --sort=-rss | tail -n +2 | head -n 20 | awk '{
         mem_kb=$2
@@ -150,6 +157,7 @@ show_alert() {
         fi
         echo "╚═══════════════════════════════════════════════════"
     fi
+    rm -f "$LOCK_FILE"
 }
 
 show_top() {

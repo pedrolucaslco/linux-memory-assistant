@@ -69,15 +69,25 @@ show_alert() {
   fi
 }
 
+LOCK_FILE="/tmp/plco-memory-assistant-alert.lock"
+
+cleanup() {
+  rm -f "$LOCK_FILE"
+}
+trap cleanup EXIT
+
 # --- Main loop ---
 
 while true; do
   usage=$(get_mem_usage)
-  # echo "[INFO] Memory: ${usage}/${THRESHOLD}%"
 
   if [ "$usage" -ge "$THRESHOLD" ]; then
-    canberra-gtk-play --id=dialog-warning &
-    show_alert "$usage"
+    if [ ! -f "$LOCK_FILE" ] || ! kill -0 "$(cat "$LOCK_FILE")" 2>/dev/null; then
+      echo $$ > "$LOCK_FILE"
+      canberra-gtk-play --id=dialog-warning &
+      show_alert "$usage"
+      rm -f "$LOCK_FILE"
+    fi
   fi
 
   sleep 1
