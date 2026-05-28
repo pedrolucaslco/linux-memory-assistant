@@ -33,15 +33,44 @@ get_mem_usage() {
     fi
 }
 
+find_icon() {
+    local name="$1" path
+    for path in \
+        "/usr/share/icons/hicolor/48x48/apps/${name}.png" \
+        "/usr/share/icons/hicolor/64x64/apps/${name}.png" \
+        "/usr/share/pixmaps/${name}.png" \
+        "/var/lib/snapd/desktop/icons/${name}.png"; do
+        [ -f "$path" ] && { echo "$path"; return; }
+    done
+    local lower="${name,,}"
+    [ "$lower" != "$name" ] && find_icon "$lower" && return
+    echo ""
+}
+DEFAULT_ICON=""
+for _ic in \
+    "/usr/share/icons/Adwaita/48x48/categories/applications-system.png" \
+    "/usr/share/icons/hicolor/48x48/apps/gnome-panel.png" \
+    "/usr/share/pixmaps/gnome-logo-icon.png"; do
+    [ -f "$_ic" ] && { DEFAULT_ICON="$_ic"; break; }
+done
+
 get_procs() {
-    ps -eo comm,rss | awk 'NR>1 { mem[$1] += $2 }
-        END { for (c in mem) print mem[c], c }' | \
-        sort -k1 -rn | head -20 | awk '{
-            kb=$1; sub(/^[0-9]+ /,""); name=$0
-            gb=kb/1024/1024
-            if(gb>=1) printf "%s\n%.2f GB\n", name, gb
-            else { mb=kb/1024; printf "%s\n%.0f MB\n", name, mb }
-        }'
+    ps -eo comm,rss,etime --sort=-rss | tail -n +2 | head -n 25 | while IFS=' ' read -r comm rss etime; do
+        local icon mem_str
+        icon=$(find_icon "$comm")
+        [ -z "$icon" ] && icon="$DEFAULT_ICON"
+        gb=$(awk "BEGIN { printf \"%.2f\", $rss / 1024 / 1024 }")
+        if [ "${gb%%.*}" -ge 1 ] 2>/dev/null; then
+            mem_str="${gb} GB"
+        else
+            mem_mb=$(( rss / 1024 ))
+            mem_str="${mem_mb} MB"
+        fi
+        echo "$icon"
+        echo "$comm"
+        echo "$mem_str"
+        echo "$etime"
+    done
 }
 
 is_running() {
@@ -111,9 +140,10 @@ show_alert() {
 
     choice=$(echo "$procs" | zenity --list \
         --title="Memory Alert (Threshold: ${threshold_alert}%)" \
-        --text="This is a preview of the critical alert window.\nProcesses grouped by name:\n" \
-        --column="Application" --column="Memory" \
-        --width=800 --height=600 \
+        --text="This is a preview of the critical alert window.\n" \
+        --column="pixbuf:Icon" --column="Application" --column="Memory" --column="Uptime" \
+        --print-column=2 \
+        --width=900 --height=600 \
         --ok-label="Force Quit" \
         --cancel-label="Close" \
         --icon=dialog-warning)
@@ -182,12 +212,19 @@ show_alert() {
 
 show_top() {
     clear
-    echo "── Top Processes by Memory (grouped) ──"
-    echo ""
-    get_procs | awk '{
-        if(NR%2) { name=$0; next }
-        printf "  %-22s %s\n", name, $0
-    }'
+    printf "  %-22s %-10s %s\n" "COMMAND" "MEMORY" "UPTIME"
+    printf "  %s\n" "──────────────────────────────────────────────"
+    local line=0 name mem uptime
+    get_procs | while IFS= read -r val; do
+        case $((line % 4)) in
+            0) ;;                          # icon - skip
+            1) name="$val" ;;               # name
+            2) mem="$val" ;;                # memory
+            3) uptime="$val"                # uptime
+               printf "  %-22s %-10s %s\n" "$name" "$mem" "$uptime" ;;
+        esac
+        line=$((line + 1))
+    done
     echo ""
     read -p "Press Enter to return..."
 }
