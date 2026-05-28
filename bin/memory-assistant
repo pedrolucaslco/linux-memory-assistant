@@ -1,6 +1,6 @@
 #!/bin/bash
 
-THRESHOLD=90
+THRESHOLD=80
 
 get_mem_usage() {
   
